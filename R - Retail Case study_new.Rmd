@@ -1,0 +1,212 @@
+---
+title: "Retail Case Study"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Import CSV Data Files
+```{r}
+
+customer<-read.csv("Customer.csv")
+View(customer)
+
+prod_cat_info<-read.csv("prod_cat_info.csv")
+View(prod_cat_info)
+
+Transactions<-read.csv("Transactions.csv")
+View(Transactions)
+```
+
+#Q(1)
+## (a) Merge the data set with the help of the merge()
+```{r}
+customer_df<-merge(customer, Transactions,by.x="customer_Id",by.y="cust_id")
+View(customer_df)
+
+Customer_Final<-merge(customer_df,prod_cat_info, by.x="prod_subcat_code",by.y = "prod_sub_cat_code")
+View(Customer_Final)
+
+head(Customer_Final,3)
+```
+
+##(b) Merge the data set with the help of dplyr package
+```{r}
+library(dplyr)
+customer_df<-inner_join(customer,Transactions, by=c("customer_Id"="cust_id"))
+View(customer_df)
+
+Customer_Final<-inner_join(customer_df,prod_cat_info,by=c("prod_subcat_code"="prod_sub_cat_code"))
+View(Customer_Final)
+
+head(Customer_Final,3)
+```
+#Q(2) Prepare a summary report for the marged data set.
+##(a) Get the column names and their corresponding data types.
+```{r}
+colnames(Customer_Final)
+#OR
+names(Customer_Final)
+``` 
+
+##(b)Top/Bottom 10 observations
+```{r}
+head(Customer_Final,10)
+
+tail(Customer_Final,10)
+```
+
+##(c) "Five-Number summary", for continuous variables.
+```{r}
+Customer_Final %>% select(Qty, Rate,Tax, total_amt)%>%summary()
+#OR
+summary(Customer_Final$Qty)
+summary(Customer_Final$Rate)
+summary(Customer_Final$Tax)
+summary(Customer_Final$total_amt)
+
+```
+
+##(d) Frequency tables for all the categorical variables.
+```{r}
+data.frame(table(Customer_Final$Gender))
+data.frame(table(Customer_Final$city_code))
+data.frame(table(Customer_Final$prod_subcat_code))
+data.frame(table(Customer_Final$prod_cat_code.x))
+data.frame(table(Customer_Final$Store_type))
+data.frame(table(Customer_Final$prod_cat_code.y))
+data.frame(table(Customer_Final$prod_cat))
+data.frame(table(Customer_Final$prod_subcat))
+```
+
+#Q(3) Generate Histogram for all the continuous Variables and frequency bars for categorical variables.
+```{r}
+hist(Customer_Final$Qty, xlab = "Qty", ylab = "Frequency", main = "Histogram for Qty")
+hist(Customer_Final$Rate,xlab = "Rate", ylab = "Frequency", main = "Histogram for Rate")
+hist(Customer_Final$Tax,xlab = "Tax", ylab = "Frequency", main = "Histogram for Tax")
+hist(Customer_Final$total_amt,xlab = "total_amt", ylab = "Frequency", main = "Histogram for tital_amt")
+
+#barplot(data.frame(table(Customer_Final$Gender)))
+barplot(table(Customer_Final$city_code))
+barplot(table(Customer_Final$prod_subcat_code))
+barplot(table(Customer_Final$prod_cat_code.x))
+barplot(table(Customer_Final$Store_type))
+barplot(table(Customer_Final$prod_cat_code.y))
+barplot(table(Customer_Final$prod_cat))
+barplot(table(Customer_Final$prod_subcat))
+```
+
+#Q(4) Calculate the following information using the merged dataset
+```{r}
+library(lubridate)
+df<-distinct(select(Customer_Final, transaction_id,tran_date))
+dmy=dmy(df$tran_date)
+head(dmy,20)
+
+mdy=mdy(df$tran_date)
+head(mdy,20)
+
+mdy[is.na(mdy)]<-dmy[is.na(mdy)]
+df$tran_date<-mdy
+head(df,5)
+
+#Time Period
+years<-year(max(df$tran_date))-year(min(df$tran_date))
+years
+
+months<-month(max(df$tran_date))-month(min(df$tran_date))
+months
+
+day<-day(max(df$tran_date))-month(min(df$tran_date))
+day
+```
+##(b) Count the transactions where the total amount of transaction was negative.
+```{r}
+Customer_Final%>%select(transaction_id,total_amt)%>%filter(total_amt<0)%>%count(transaction_id)%>%head()
+```
+#Q(5) Analyze which product categories are more popular among females vs male customers.
+```{r}
+Customer_Final%>%select(prod_cat, Gender)%>%group_by(prod_cat)%>%count(Gender)%>%arrange(desc(n))
+```
+prod_cat "Books" is more popular among females and male.
+
+#Q(6) Which City code has the maximum customers and what was the percentage of customers from the city?
+```{r}
+max_cust<-Customer_Final%>%select(customer_Id,city_code)%>%distinct()%>%count(city_code)
+max_cust
+
+#Identify NA's.
+which(is.na(Customer_Final$city_code))
+
+#Replace NA's with city code 3.
+Customer_Final$city_code[is.na(Customer_Final$city_code)]<-3
+
+#City code wise Maximum customers.
+max_cust<-Customer_Final%>%select(customer_Id,city_code)%>%distinct()%>%count(city_code)%>%arrange(desc(n))
+max_cust
+
+```
+City code 3 has maximum customers.
+
+```{r}
+#Percentage of the customers of each city.
+max_cust$Percentage<-round((max_cust$n/sum(max_cust$n))*100,2)
+max_cust
+```
+#Q(7)Which store type sells the maximum products by value and by quantity?
+```{r}
+Customer_Final%>% select(Store_type,total_amt,Qty)%>%group_by(Store_type)%>%summarise(Grand_sales=sum(total_amt),Grand_Qty=sum(Qty))%>%arrange(desc(Grand_Qty))
+```
+Store type "e-shope" sells the maximum products by value and by quantity.
+
+#Q(8) What was the total amount earned from the "Electronics" and "Clothing" categories from Flagship stores?
+```{r}
+Customer_Final%>%select(Store_type,prod_cat, total_amt)%>%filter(Store_type=="Flagship store",prod_cat==c("Electronics","Clothing"))%>%group_by(prod_cat)%>%summarise(Grand_Total=sum(total_amt))
+```
+#Q(9) What was the total amount earned from "Male" customers under the "Electronic" category?
+```{r}
+Customer_Final %>% select(prod_cat,Gender,total_amt)%>%filter(Gender=="M",prod_cat=="Electronics")%>%summarise(prod_cat="Electronics",Gender="M",Grand_Total=sum(total_amt))
+```
+#Q(10) How many customers have more than 10 unique transactions, after removing all the transaction which have any negative amounts?
+```{r}
+Customer_Final%>% select(transaction_id,customer_Id,total_amt)%>%filter(total_amt>0)%>%distinct(transaction_id, customer_Id)%>%group_by(customer_Id)%>%count(customer_Id)%>%arrange(desc(n))%>%filter(n > 10)
+```
+There are six customers having more than 10 unique transactions, after removing all the transaction which have any negative amounts.
+
+#Q(11) For all customers aged between 25 - 35, find out:
+##(a) What was the total amount spent for "Electronics" and "Books" product categories?
+```{r}
+#Changing DOB Date format %Y-%m-%d as the R standard.
+Customer_Final$DOB<-strptime(as.character(Customer_Final$DOB),"%d-%m-%Y")
+Customer_Final$DOB<-format(Customer_Final$DOB,"%Y-%m-%d")
+
+#Adding Age column.
+Customer_Final$Age<-year(Sys.Date())-year(Customer_Final$DOB)
+
+Customer_Final%>%select(prod_cat,Age,total_amt)%>%filter(prod_cat==c("Electronics","Books"), Age==25:35)%>%group_by(prod_cat)%>%summarise(sum(total_amt))
+```
+#Q(b) What was the total amount spent by these customers between 1st Jan,2014 to 1st Mar, 2014?
+```{r}
+#Converting the date format of tran_date into the same format.
+library(lubridate)
+dmy=dmy(Customer_Final$tran_date)
+head(dmy,20)
+
+mdy=mdy(Customer_Final$tran_date)
+head(mdy,20)
+
+mdy[is.na(mdy)]<-dmy[is.na(mdy)]
+Customer_Final$tran_date<-mdy
+
+#Calculating total amount. 
+Customer_Final%>%select(Age,tran_date,total_amt)%>%filter(Age==25:35,tran_date>="2014-01-01" & tran_date <= "2014-03-01" )%>%arrange(tran_date) %>%summarise(sum(total_amt))
+
+```
+
+
+
+
